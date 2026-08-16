@@ -1,0 +1,23 @@
+
+Tennis Practice Templates
+
+This app is designed for personal use so that anyone can come up with a practice plan for their tennis sessions.
+This app should be hosted on Vercel.
+All data will be saved on local storage. 
+All code should be verbose and have comments that explain what each section does.
+It should be written in .net8 and should use blazor web assembly. 
+
+It will be a web app but responsive for a Iphone 13 pro and will work perfectly on the default apple browser.
+
+It should support unlimited templates to be created that will practice instructions
+Each Template will turn into a set of instructions which will be the all instructions for the practice session. 
+
+Each Instructions will be user created and can be saved. These instructions can then be selected from a drop down menu or added on the spot to the practice session.
+An instruction will have a required amount of time (minutes) and an optional amount of balls to be hit. 
+An instruction will also have a text for a short description of the instruction. For example: Hit Cross Court with Backhands 5 minutes or 50 balls to be hit.
+An instruction will have a link to a youtube video that can be optionally added. When clicked it will open that page in a separate tab. 
+A separate option time 
+The time for each instruction should be summed up so that the user can see the total length of the practice session. 
+Each set of instructions should have a title that the user can create.
+
+Before you start building - does this program make sense? What changes would you make?

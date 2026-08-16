@@ -1,0 +1,16 @@
+﻿@inherits LayoutComponentBase
+<div class="relative flex min-h-screen flex-col bg-court-50 md:flex-row">
+    <div class="bg-court-900 md:sticky md:top-0 md:h-screen md:w-64">
+        <NavMenu />
+    </div>
+
+    <main class="min-w-0 flex-1">
+        <div class="flex h-14 items-center border-b border-court-100 bg-white/90 px-5 backdrop-blur">
+            <span class="text-sm font-bold uppercase tracking-widest text-court-700">Practice Session Builder</span>
+        </div>
+
+        <article class="px-5 py-6 md:px-8">
+            @Body
+        </article>
+    </main>
+</div>

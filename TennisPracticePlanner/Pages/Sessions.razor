@@ -1,0 +1,38 @@
+@page "/sessions"
+@inject ITennisPracticeDataService DataService
+
+<PageTitle>Session Library</PageTitle>
+
+<div class="content-panel">
+    <h1 class="display-title">Session Library</h1>
+    <p class="subtitle">All saved practice sessions built from your templates.</p>
+
+    <div class="panel-card">
+        @if (SessionItems.Count == 0)
+        {
+            <p>No sessions available yet. Create one from Templates first.</p>
+        }
+        else
+        {
+            <div class="session-list-clean">
+                @foreach (PracticeTemplate session in SessionItems)
+                {
+                    <a class="session-link" href="@($"/sessions/{session.Id}")">
+                        <span class="session-title">@session.Title</span>
+                        <span class="session-meta">@session.InstructionItems.Count instructions</span>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<PracticeTemplate> SessionItems { get; set; } = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await DataService.InitializeAsync();
+        SessionItems = await DataService.GetPracticeTemplatesAsync();
+    }
+}

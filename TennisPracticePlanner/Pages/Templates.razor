@@ -1,0 +1,116 @@
+@page "/templates"
+@using TennisPracticePlanner.Models
+@using TennisPracticePlanner.Services
+@inject ITennisPracticeDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>Practice Templates</PageTitle>
+
+<div class="content-panel">
+    <h1 class="display-title">Practice Templates</h1>
+    <p class="subtitle">Build and manage complete practice sessions.</p>
+
+    <div class="panel-card form-card">
+        <h2>Create Template</h2>
+
+        @if (!string.IsNullOrWhiteSpace(FormMessage))
+        {
+            <p class="form-message">@FormMessage</p>
+        }
+
+        <div class="form-grid">
+            <label>
+                Template Title (required)
+                <input class="input-field" @bind="NewTemplateTitle" />
+            </label>
+        </div>
+
+        <div class="button-row">
+            <button class="button button-accent" @onclick="CreateTemplateAsync">Create Template</button>
+        </div>
+    </div>
+
+    <div class="panel-card">
+        <h2>Saved Templates (@SavedTemplates.Count)</h2>
+
+        @if (SavedTemplates.Count == 0)
+        {
+            <p>No templates yet. Create one to get started.</p>
+        }
+        else
+        {
+            <div class="card-grid">
+                @foreach (PracticeTemplate practiceTemplate in SavedTemplates)
+                {
+                    <article class="item-card">
+                        <h3>@practiceTemplate.Title</h3>
+                        <p><strong>Instructions:</strong> @practiceTemplate.InstructionItems.Count</p>
+                        <p><strong>Total Duration:</strong> @GetTemplateDuration(practiceTemplate) minutes</p>
+
+                        <div class="button-row">
+                            <button class="button button-primary" @onclick="() => OpenTemplateEditor(practiceTemplate.Id)">Edit Session</button>
+                            <button class="button button-secondary" @onclick="() => OpenSessionDetail(practiceTemplate.Id)">View Detail</button>
+                            <button class="button button-danger" @onclick="() => DeleteTemplateAsync(practiceTemplate.Id)">Delete</button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<PracticeTemplate> SavedTemplates { get; set; } = [];
+    private string NewTemplateTitle { get; set; } = string.Empty;
+    private string? FormMessage { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await DataService.InitializeAsync();
+        await LoadTemplatesAsync();
+    }
+
+    private async Task LoadTemplatesAsync()
+    {
+        SavedTemplates = await DataService.GetPracticeTemplatesAsync();
+    }
+
+    private async Task CreateTemplateAsync()
+    {
+        FormMessage = null;
+
+        if (string.IsNullOrWhiteSpace(NewTemplateTitle))
+        {
+            FormMessage = "Template title is required.";
+            return;
+        }
+
+        PracticeTemplate createdTemplate = await DataService.CreatePracticeTemplateAsync(NewTemplateTitle);
+        NewTemplateTitle = string.Empty;
+
+        await LoadTemplatesAsync();
+        Navigation.NavigateTo($"/templates/{createdTemplate.Id}");
+    }
+
+    private async Task DeleteTemplateAsync(string templateId)
+    {
+        FormMessage = null;
+        await DataService.DeletePracticeTemplateAsync(templateId);
+        await LoadTemplatesAsync();
+    }
+
+    private void OpenTemplateEditor(string templateId)
+    {
+        Navigation.NavigateTo($"/templates/{templateId}");
+    }
+
+    private void OpenSessionDetail(string templateId)
+    {
+        Navigation.NavigateTo($"/sessions/{templateId}");
+    }
+
+    private static int GetTemplateDuration(PracticeTemplate practiceTemplate)
+    {
+        return practiceTemplate.InstructionItems.Sum(item => item.DurationMinutes);
+    }
+}
