@@ -1,0 +1,34 @@
+﻿<div class="flex h-14 items-center justify-between border-b border-white/10 px-5">
+    <a class="font-['Bebas_Neue'] text-2xl tracking-wide text-white no-underline" href="">Tennis Practice</a>
+    <button title="Navigation menu" class="rounded-md p-2 text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-peach-300 md:hidden" @onclick="ToggleNavMenu">
+        <span class="block h-0.5 w-5 bg-white shadow-[0_6px_0_white,0_-6px_0_white]"></span>
+    </button>
+</div>
+
+<div class="@NavMenuCssClass px-3 py-4" @onclick="ToggleNavMenu">
+    <nav class="space-y-1">
+        <NavLink class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-court-100 no-underline transition hover:bg-white/10 hover:text-white [&.active]:bg-peach-500 [&.active]:text-white" href="" Match="NavLinkMatch.All">
+            <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+        </NavLink>
+        <NavLink class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-court-100 no-underline transition hover:bg-white/10 hover:text-white [&.active]:bg-peach-500 [&.active]:text-white" href="instructions">
+            <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Instructions
+        </NavLink>
+        <NavLink class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-court-100 no-underline transition hover:bg-white/10 hover:text-white [&.active]:bg-peach-500 [&.active]:text-white" href="templates">
+            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Templates
+        </NavLink>
+        <NavLink class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-court-100 no-underline transition hover:bg-white/10 hover:text-white [&.active]:bg-peach-500 [&.active]:text-white" href="sessions">
+            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Sessions
+        </NavLink>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string NavMenuCssClass => collapseNavMenu ? "hidden md:block" : "block";
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+}

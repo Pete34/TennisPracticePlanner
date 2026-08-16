@@ -1,0 +1,14 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# Local IDE state
+.vs/
+.vscode/
+
+# Vercel local project metadata
+.vercel/
+
+# User-specific files
+*.user
+*.suo

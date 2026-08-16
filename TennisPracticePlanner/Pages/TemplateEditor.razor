@@ -1,0 +1,399 @@
+@page "/templates/{TemplateId}"
+@using System.Text.RegularExpressions
+@using TennisPracticePlanner.Models
+@using TennisPracticePlanner.Services
+@inject ITennisPracticeDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>Template Editor</PageTitle>
+
+@if (Template is null)
+{
+    <div class="content-panel">
+        <p>Loading template...</p>
+    </div>
+}
+else
+{
+    <div class="content-panel">
+        <h1 class="display-title">Template Editor</h1>
+        <p class="subtitle">Build your session by mixing reusable and one-off instructions.</p>
+
+        <div class="panel-card form-card">
+            <h2>Template Details</h2>
+
+            @if (!string.IsNullOrWhiteSpace(PageMessage))
+            {
+                <p class="form-message">@PageMessage</p>
+            }
+
+            <div class="form-grid">
+                <label>
+                    Template Title (required)
+                    <input class="input-field" @bind="TemplateTitle" />
+                </label>
+            </div>
+
+            <div class="button-row">
+                <button class="button button-primary" @onclick="SaveTemplateTitleAsync">Save Title</button>
+                <button class="button button-secondary" @onclick="BackToTemplates">Back to Templates</button>
+            </div>
+
+            <p><strong>Total Duration:</strong> @TotalDuration minutes</p>
+        </div>
+
+        <div class="panel-card form-card">
+            <h2>Add from Reusable Library</h2>
+
+            @if (LibraryInstructions.Count == 0)
+            {
+                <p>Create reusable instructions first to use this picker.</p>
+            }
+            else
+            {
+                <div class="form-grid">
+                    <label>
+                        Saved Instruction
+                        <select class="input-field" @bind="SelectedReusableInstructionId">
+                            <option value="">Select instruction</option>
+                            @foreach (ReusableInstruction instruction in LibraryInstructions)
+                            {
+                                <option value="@instruction.Id">@instruction.Description (@instruction.DurationMinutes min)</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+
+                <div class="button-row">
+                    <button class="button button-accent" @onclick="AddFromLibraryAsync">Add Instruction Copy</button>
+                </div>
+            }
+        </div>
+
+        <div class="panel-card form-card">
+            <h2>Add One-Off Instruction</h2>
+
+            <div class="form-grid">
+                <label>
+                    Description (required)
+                    <input class="input-field" @bind="OneOffInstruction.Description" />
+                </label>
+
+                <label>
+                    Duration Minutes (required)
+                    <input class="input-field" type="number" min="1" @bind="OneOffInstruction.DurationMinutes" />
+                </label>
+
+                <label>
+                    Ball Count (optional)
+                    <input class="input-field" type="number" min="0" @bind="OneOffInstruction.BallCount" />
+                </label>
+
+                <label>
+                    YouTube URL (optional)
+                    <input class="input-field" @bind="OneOffInstruction.YoutubeUrl" />
+                </label>
+
+                <label>
+                    YouTube Start Time (optional, mm:ss)
+                    <input class="input-field" @bind="OneOffInstruction.YoutubeStartTime" placeholder="01:30" />
+                </label>
+            </div>
+
+            <div class="button-row">
+                <button class="button button-accent" @onclick="AddOneOffInstructionAsync">Add One-Off Instruction</button>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <h2>Session Instructions (@OrderedInstructions.Count)</h2>
+
+            @if (OrderedInstructions.Count == 0)
+            {
+                <p>Add instructions to start building this session.</p>
+            }
+            else
+            {
+                <div class="card-grid">
+                    @for (int index = 0; index < OrderedInstructions.Count; index++)
+                    {
+                        TemplateInstructionItem item = OrderedInstructions[index];
+
+                        <article class="item-card">
+                            <h3>Step @(index + 1)</h3>
+
+                            <div class="form-grid">
+                                <label>
+                                    Description
+                                    <input class="input-field" @bind="item.Description" />
+                                </label>
+
+                                <label>
+                                    Duration Minutes
+                                    <input class="input-field" type="number" min="1" @bind="item.DurationMinutes" />
+                                </label>
+
+                                <label>
+                                    Ball Count
+                                    <input class="input-field" type="number" min="0" @bind="item.BallCount" />
+                                </label>
+
+                                <label>
+                                    YouTube URL
+                                    <input class="input-field" @bind="item.YoutubeUrl" />
+                                </label>
+
+                                <label>
+                                    YouTube Start Time
+                                    <input class="input-field" @bind="item.YoutubeStartTime" placeholder="01:30" />
+                                </label>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(item.YoutubeUrl))
+                            {
+                                <p><a href="@BuildYoutubeUrl(item.YoutubeUrl, item.YoutubeStartTime)" target="_blank" rel="noopener noreferrer">Open Drill Video</a></p>
+                            }
+
+                            <div class="button-row">
+                                <button class="button button-primary" @onclick="() => SaveInstructionItemAsync(item)">Save</button>
+                                <button class="button button-secondary" disabled="@(index == 0)" @onclick="() => MoveInstructionAsync(item, -1)">Move Up</button>
+                                <button class="button button-secondary" disabled="@(index == OrderedInstructions.Count - 1)" @onclick="() => MoveInstructionAsync(item, 1)">Move Down</button>
+                                <button class="button button-danger" @onclick="() => DeleteInstructionItemAsync(item)">Delete</button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string TemplateId { get; set; } = string.Empty;
+
+    private static readonly Regex TimeRegex = new("^\\d{1,2}:\\d{2}$", RegexOptions.Compiled);
+
+    private PracticeTemplate? Template { get; set; }
+    private List<ReusableInstruction> LibraryInstructions { get; set; } = [];
+
+    private string TemplateTitle { get; set; } = string.Empty;
+    private string SelectedReusableInstructionId { get; set; } = string.Empty;
+    private TemplateInstructionItem OneOffInstruction { get; set; } = new();
+    private string? PageMessage { get; set; }
+
+    private List<TemplateInstructionItem> OrderedInstructions => Template?.InstructionItems
+        .OrderBy(item => item.SortOrder)
+        .ToList() ?? [];
+
+    private int TotalDuration => OrderedInstructions.Sum(item => item.DurationMinutes);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await DataService.InitializeAsync();
+        await LoadPageDataAsync();
+    }
+
+    private async Task LoadPageDataAsync()
+    {
+        Template = await DataService.GetPracticeTemplateByIdAsync(TemplateId);
+
+        if (Template is null)
+        {
+            Navigation.NavigateTo("/templates");
+            return;
+        }
+
+        TemplateTitle = Template.Title;
+        LibraryInstructions = await DataService.GetReusableInstructionsAsync();
+    }
+
+    private async Task SaveTemplateTitleAsync()
+    {
+        PageMessage = null;
+
+        if (string.IsNullOrWhiteSpace(TemplateTitle))
+        {
+            PageMessage = "Template title is required.";
+            return;
+        }
+
+        await DataService.UpdatePracticeTemplateTitleAsync(TemplateId, TemplateTitle);
+        await LoadPageDataAsync();
+        PageMessage = "Template title saved.";
+    }
+
+    private async Task AddFromLibraryAsync()
+    {
+        PageMessage = null;
+
+        if (string.IsNullOrWhiteSpace(SelectedReusableInstructionId))
+        {
+            PageMessage = "Select a reusable instruction first.";
+            return;
+        }
+
+        await DataService.AddInstructionCopyFromLibraryAsync(TemplateId, SelectedReusableInstructionId);
+        await LoadPageDataAsync();
+        SelectedReusableInstructionId = string.Empty;
+    }
+
+    private async Task AddOneOffInstructionAsync()
+    {
+        PageMessage = null;
+
+        if (!TryValidateTemplateInstruction(OneOffInstruction, out string validationMessage))
+        {
+            PageMessage = validationMessage;
+            return;
+        }
+
+        TemplateInstructionItem newItem = new()
+        {
+            Description = OneOffInstruction.Description,
+            DurationMinutes = OneOffInstruction.DurationMinutes,
+            BallCount = OneOffInstruction.BallCount,
+            YoutubeUrl = OneOffInstruction.YoutubeUrl,
+            YoutubeStartTime = NormalizeStartTime(OneOffInstruction.YoutubeStartTime)
+        };
+
+        await DataService.AddOneOffInstructionAsync(TemplateId, newItem);
+        OneOffInstruction = new TemplateInstructionItem();
+
+        await LoadPageDataAsync();
+        PageMessage = "One-off instruction added.";
+    }
+
+    private async Task SaveInstructionItemAsync(TemplateInstructionItem item)
+    {
+        PageMessage = null;
+
+        if (!TryValidateTemplateInstruction(item, out string validationMessage))
+        {
+            PageMessage = validationMessage;
+            return;
+        }
+
+        item.YoutubeStartTime = NormalizeStartTime(item.YoutubeStartTime);
+
+        await DataService.UpdateTemplateInstructionAsync(TemplateId, item);
+        await LoadPageDataAsync();
+        PageMessage = "Instruction saved.";
+    }
+
+    private async Task DeleteInstructionItemAsync(TemplateInstructionItem item)
+    {
+        PageMessage = null;
+        await DataService.DeleteTemplateInstructionAsync(TemplateId, item.Id);
+        await LoadPageDataAsync();
+    }
+
+    private async Task MoveInstructionAsync(TemplateInstructionItem item, int direction)
+    {
+        PageMessage = null;
+        await DataService.MoveTemplateInstructionAsync(TemplateId, item.Id, direction);
+        await LoadPageDataAsync();
+    }
+
+    private void BackToTemplates()
+    {
+        Navigation.NavigateTo("/templates");
+    }
+
+    private static bool TryValidateTemplateInstruction(TemplateInstructionItem instructionItem, out string message)
+    {
+        if (string.IsNullOrWhiteSpace(instructionItem.Description))
+        {
+            message = "Instruction description is required.";
+            return false;
+        }
+
+        if (instructionItem.DurationMinutes <= 0)
+        {
+            message = "Duration minutes must be greater than 0.";
+            return false;
+        }
+
+        if (instructionItem.BallCount is < 0)
+        {
+            message = "Ball count must be 0 or greater.";
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(instructionItem.YoutubeUrl)
+            && !Uri.TryCreate(instructionItem.YoutubeUrl, UriKind.Absolute, out _))
+        {
+            message = "YouTube URL must be a valid URL.";
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(instructionItem.YoutubeStartTime)
+            && !TryParseStartTime(instructionItem.YoutubeStartTime, out _))
+        {
+            message = "YouTube start time must use mm:ss format.";
+            return false;
+        }
+
+        message = string.Empty;
+        return true;
+    }
+
+    private static bool TryParseStartTime(string rawValue, out int totalSeconds)
+    {
+        totalSeconds = 0;
+
+        if (!TimeRegex.IsMatch(rawValue.Trim()))
+        {
+            return false;
+        }
+
+        string[] parts = rawValue.Split(':', StringSplitOptions.TrimEntries);
+
+        if (!int.TryParse(parts[0], out int minutes) || !int.TryParse(parts[1], out int seconds))
+        {
+            return false;
+        }
+
+        if (minutes < 0 || seconds < 0 || seconds > 59)
+        {
+            return false;
+        }
+
+        totalSeconds = (minutes * 60) + seconds;
+        return true;
+    }
+
+    private static string? NormalizeStartTime(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        if (!TryParseStartTime(rawValue, out int totalSeconds))
+        {
+            return rawValue;
+        }
+
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return $"{minutes:D2}:{seconds:D2}";
+    }
+
+    private static string BuildYoutubeUrl(string? youtubeUrl, string? youtubeStartTime)
+    {
+        if (string.IsNullOrWhiteSpace(youtubeUrl))
+        {
+            return "#";
+        }
+
+        if (string.IsNullOrWhiteSpace(youtubeStartTime)
+            || !TryParseStartTime(youtubeStartTime, out int totalSeconds))
+        {
+            return youtubeUrl;
+        }
+
+        string separator = youtubeUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return $"{youtubeUrl}{separator}t={totalSeconds}s";
+    }
+}

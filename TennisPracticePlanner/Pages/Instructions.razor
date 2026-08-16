@@ -1,0 +1,276 @@
+@page "/instructions"
+@using System.Text.RegularExpressions
+@using TennisPracticePlanner.Models
+@using TennisPracticePlanner.Services
+@inject ITennisPracticeDataService DataService
+
+<PageTitle>Instruction Library</PageTitle>
+
+<div class="content-panel">
+    <h1 class="display-title">Instruction Library</h1>
+    <p class="subtitle">Create reusable practice instructions and add them to templates later.</p>
+
+    <div class="panel-card form-card">
+        <h2>@(IsEditMode ? "Edit Instruction" : "Add Instruction")</h2>
+
+        @if (!string.IsNullOrWhiteSpace(FormMessage))
+        {
+            <p class="form-message">@FormMessage</p>
+        }
+
+        <div class="form-grid">
+            <label>
+                Description (required)
+                <input class="input-field" @bind="InstructionForm.Description" />
+            </label>
+
+            <label>
+                Duration Minutes (required)
+                <input class="input-field" type="number" min="1" @bind="InstructionForm.DurationMinutes" />
+            </label>
+
+            <label>
+                Ball Count (optional)
+                <input class="input-field" type="number" min="0" @bind="InstructionForm.BallCount" />
+            </label>
+
+            <label>
+                YouTube URL (optional)
+                <input class="input-field" @bind="InstructionForm.YoutubeUrl" />
+            </label>
+
+            <label>
+                YouTube Start Time (optional, mm:ss)
+                <input class="input-field" @bind="InstructionForm.YoutubeStartTime" placeholder="01:30" />
+            </label>
+        </div>
+
+        <div class="button-row">
+            <button class="button button-accent" @onclick="SaveInstructionAsync">@(IsEditMode ? "Save Changes" : "Create Instruction")</button>
+            @if (IsEditMode)
+            {
+                <button class="button button-secondary" @onclick="CancelEdit">Cancel</button>
+            }
+        </div>
+    </div>
+
+    <div class="panel-card">
+        <h2>Saved Instructions (@SavedInstructions.Count)</h2>
+
+        @if (SavedInstructions.Count == 0)
+        {
+            <p>No reusable instructions yet. Add your first one above.</p>
+        }
+        else
+        {
+            <div class="card-grid">
+                @foreach (ReusableInstruction instruction in SavedInstructions)
+                {
+                    <article class="item-card">
+                        <h3>@instruction.Description</h3>
+                        <p><strong>Duration:</strong> @instruction.DurationMinutes min</p>
+                        @if (instruction.BallCount.HasValue)
+                        {
+                            <p><strong>Balls:</strong> @instruction.BallCount.Value</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(instruction.YoutubeUrl))
+                        {
+                            <p><a href="@BuildYoutubeUrl(instruction.YoutubeUrl, instruction.YoutubeStartTime)" target="_blank" rel="noopener noreferrer">Open Drill Video</a></p>
+                        }
+
+                        <div class="button-row">
+                            <button class="button button-primary" @onclick="() => BeginEdit(instruction)">Edit</button>
+                            <button class="button button-danger" @onclick="() => DeleteInstructionAsync(instruction.Id)">Delete</button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly Regex TimeRegex = new("^\\d{1,2}:\\d{2}$", RegexOptions.Compiled);
+
+    private List<ReusableInstruction> SavedInstructions { get; set; } = [];
+    private ReusableInstruction InstructionForm { get; set; } = new();
+
+    private string? EditingInstructionId { get; set; }
+    private string? FormMessage { get; set; }
+
+    private bool IsEditMode => !string.IsNullOrWhiteSpace(EditingInstructionId);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await DataService.InitializeAsync();
+        await LoadInstructionsAsync();
+    }
+
+    private async Task LoadInstructionsAsync()
+    {
+        SavedInstructions = await DataService.GetReusableInstructionsAsync();
+    }
+
+    private async Task SaveInstructionAsync()
+    {
+        FormMessage = null;
+
+        if (!TryValidateInstruction(InstructionForm, out string validationMessage))
+        {
+            FormMessage = validationMessage;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(InstructionForm.YoutubeStartTime))
+        {
+            InstructionForm.YoutubeStartTime = NormalizeStartTime(InstructionForm.YoutubeStartTime);
+        }
+
+        if (IsEditMode)
+        {
+            await DataService.UpdateReusableInstructionAsync(InstructionForm);
+            FormMessage = "Instruction updated.";
+        }
+        else
+        {
+            await DataService.AddReusableInstructionAsync(InstructionForm);
+            FormMessage = "Instruction created.";
+        }
+
+        await LoadInstructionsAsync();
+        ResetForm();
+    }
+
+    private void BeginEdit(ReusableInstruction instruction)
+    {
+        EditingInstructionId = instruction.Id;
+        FormMessage = null;
+
+        InstructionForm = new ReusableInstruction
+        {
+            Id = instruction.Id,
+            Description = instruction.Description,
+            DurationMinutes = instruction.DurationMinutes,
+            BallCount = instruction.BallCount,
+            YoutubeUrl = instruction.YoutubeUrl,
+            YoutubeStartTime = instruction.YoutubeStartTime,
+            CreatedUtc = instruction.CreatedUtc,
+            UpdatedUtc = instruction.UpdatedUtc
+        };
+    }
+
+    private async Task DeleteInstructionAsync(string instructionId)
+    {
+        FormMessage = null;
+        await DataService.DeleteReusableInstructionAsync(instructionId);
+        await LoadInstructionsAsync();
+
+        if (EditingInstructionId == instructionId)
+        {
+            ResetForm();
+        }
+    }
+
+    private void CancelEdit()
+    {
+        ResetForm();
+    }
+
+    private void ResetForm()
+    {
+        EditingInstructionId = null;
+        InstructionForm = new ReusableInstruction();
+    }
+
+    private static bool TryValidateInstruction(ReusableInstruction instruction, out string message)
+    {
+        if (string.IsNullOrWhiteSpace(instruction.Description))
+        {
+            message = "Description is required.";
+            return false;
+        }
+
+        if (instruction.DurationMinutes <= 0)
+        {
+            message = "Duration minutes must be greater than 0.";
+            return false;
+        }
+
+        if (instruction.BallCount is < 0)
+        {
+            message = "Ball count must be 0 or greater.";
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(instruction.YoutubeUrl)
+            && !Uri.TryCreate(instruction.YoutubeUrl, UriKind.Absolute, out _))
+        {
+            message = "YouTube URL must be a valid URL.";
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(instruction.YoutubeStartTime)
+            && !TryParseStartTime(instruction.YoutubeStartTime, out _))
+        {
+            message = "YouTube start time must use mm:ss format.";
+            return false;
+        }
+
+        message = string.Empty;
+        return true;
+    }
+
+    private static bool TryParseStartTime(string input, out int totalSeconds)
+    {
+        totalSeconds = 0;
+
+        if (!TimeRegex.IsMatch(input.Trim()))
+        {
+            return false;
+        }
+
+        string[] parts = input.Split(':', StringSplitOptions.TrimEntries);
+
+        if (!int.TryParse(parts[0], out int minutes) || !int.TryParse(parts[1], out int seconds))
+        {
+            return false;
+        }
+
+        if (minutes < 0 || seconds < 0 || seconds > 59)
+        {
+            return false;
+        }
+
+        totalSeconds = (minutes * 60) + seconds;
+        return true;
+    }
+
+    private static string NormalizeStartTime(string rawValue)
+    {
+        if (!TryParseStartTime(rawValue, out int totalSeconds))
+        {
+            return rawValue;
+        }
+
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return $"{minutes:D2}:{seconds:D2}";
+    }
+
+    private static string BuildYoutubeUrl(string? youtubeUrl, string? youtubeStartTime)
+    {
+        if (string.IsNullOrWhiteSpace(youtubeUrl))
+        {
+            return "#";
+        }
+
+        if (string.IsNullOrWhiteSpace(youtubeStartTime)
+            || !TryParseStartTime(youtubeStartTime, out int totalSeconds))
+        {
+            return youtubeUrl;
+        }
+
+        string separator = youtubeUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return $"{youtubeUrl}{separator}t={totalSeconds}s";
+    }
+}

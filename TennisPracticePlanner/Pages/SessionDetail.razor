@@ -1,0 +1,108 @@
+@page "/sessions/{SessionId}"
+@layout SessionDetailLayout
+@inject ITennisPracticeDataService DataService
+@inject NavigationManager Navigation
+
+<PageTitle>Session Detail</PageTitle>
+
+@if (Session is null)
+{
+    <div class="content-panel">
+        <p>Loading session...</p>
+    </div>
+}
+else
+{
+    <div class="content-panel">
+        <h1 class="display-title">@Session.Title</h1>
+
+        <div class="panel-card">
+            @if (OrderedInstructions.Count == 0)
+            {
+                <p>No instructions in this session yet.</p>
+            }
+            else
+            {
+                <ol class="session-detail-list">
+                    @foreach (TemplateInstructionItem instruction in OrderedInstructions)
+                    {
+                        <li>
+                            <div class="session-detail-main">
+                                <span class="session-detail-description">@instruction.Description</span>
+                                <span class="session-detail-stats">
+                                    @instruction.DurationMinutes min
+                                    @if (instruction.BallCount.HasValue)
+                                    {
+                                        <span>| @instruction.BallCount.Value balls</span>
+                                    }
+                                </span>
+                            </div>
+
+                            <div class="session-detail-actions">
+                                @if (!string.IsNullOrWhiteSpace(instruction.YoutubeUrl))
+                                {
+                                    <a href="@BuildYoutubeUrl(instruction.YoutubeUrl, instruction.YoutubeStartTime)" target="_blank" rel="noopener noreferrer">YouTube</a>
+                                }
+                            </div>
+                        </li>
+                    }
+                </ol>
+            }
+
+            <p><strong>Total Duration:</strong> @TotalDuration minutes</p>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string SessionId { get; set; } = string.Empty;
+
+    private PracticeTemplate? Session { get; set; }
+
+    private List<TemplateInstructionItem> OrderedInstructions => Session?.InstructionItems
+        .OrderBy(item => item.SortOrder)
+        .ToList() ?? [];
+
+    private int TotalDuration => OrderedInstructions.Sum(item => item.DurationMinutes);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await DataService.InitializeAsync();
+        Session = await DataService.GetPracticeTemplateByIdAsync(SessionId);
+
+        if (Session is null)
+        {
+            Navigation.NavigateTo("/sessions");
+        }
+    }
+
+    private static string BuildYoutubeUrl(string? youtubeUrl, string? youtubeStartTime)
+    {
+        if (string.IsNullOrWhiteSpace(youtubeUrl))
+        {
+            return "#";
+        }
+
+        if (string.IsNullOrWhiteSpace(youtubeStartTime))
+        {
+            return youtubeUrl;
+        }
+
+        string[] parts = youtubeStartTime.Split(':', StringSplitOptions.TrimEntries);
+
+        if (parts.Length != 2 || !int.TryParse(parts[0], out int minutes) || !int.TryParse(parts[1], out int seconds))
+        {
+            return youtubeUrl;
+        }
+
+        if (minutes < 0 || seconds < 0 || seconds > 59)
+        {
+            return youtubeUrl;
+        }
+
+        int totalSeconds = (minutes * 60) + seconds;
+        string separator = youtubeUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+        return $"{youtubeUrl}{separator}t={totalSeconds}s";
+    }
+}

@@ -1,0 +1,23 @@
+.session-detail-shell {
+    min-height: 100vh;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem 0.9rem 1.5rem;
+}
+
+.session-detail-header {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.8rem;
+}
+
+.session-detail-body {
+    background: transparent;
+}
+
+@media (max-width: 640px) {
+    .session-detail-shell {
+        padding: 0.7rem 0.65rem 1.2rem;
+    }
+}

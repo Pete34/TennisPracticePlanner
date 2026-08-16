@@ -1,0 +1,10 @@
+{
+  "buildCommand": "dotnet publish -c Release",
+  "outputDirectory": "bin/Release/net8.0/publish/wwwroot",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
