@@ -1,8 +1,14 @@
 {
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "TennisPracticePlanner.csproj",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "output/wwwroot"
+      }
     }
-  ]
+  ],
+  "buildCommand": "dotnet publish -c Release -o output",
+  "installCommand": "dotnet restore"
 }
