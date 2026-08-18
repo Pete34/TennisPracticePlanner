@@ -1,14 +1,6 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "TennisPracticePlanner.csproj",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "output/wwwroot"
-      }
-    }
-  ],
+  "installCommand": "dotnet restore",
   "buildCommand": "dotnet publish -c Release -o output",
-  "installCommand": "dotnet restore"
+  "outputDirectory": "output/wwwroot"
 }
