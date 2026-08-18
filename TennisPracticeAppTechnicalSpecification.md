@@ -100,10 +100,9 @@ When editing a template, the application must allow the user to:
 - Remove an instruction from the template.
 - Edit an instruction already inside the template.
 - Reorder instructions inside the template.
-
-When a reusable instruction is added to a template, the template stores its own editable copy of that instruction.
-Editing an instruction inside a template affects only that template entry unless the user is explicitly editing the reusable library version.
-Editing an instruction inside a template does not change the reusable instruction in the instruction library.
+- When a reusable instruction is added to a template, the template stores its own editable copy of that instruction.
+- Editing an instruction inside a template affects only that template entry unless the user is explicitly editing the reusable library version.
+- Editing an instruction inside a template does not change the reusable instruction in the instruction library.
 
 ### 6.4 Duration Calculation
 
@@ -125,7 +124,7 @@ If a YouTube URL is supplied for an instruction, the application must:
 
 The start time field should:
 
-- Accept the `mm:ss` format.
+- Accept the `mm:ss` format. For example `01:30`. Single Digit numbers are allowed for minutes.
 - Be converted into a valid YouTube URL timestamp when the link is opened.
 
 ### 6.6 Local Storage Persistence
