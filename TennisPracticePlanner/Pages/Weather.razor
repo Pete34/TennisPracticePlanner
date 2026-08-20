@@ -13,9 +13,9 @@
 }
 else
 {
-    <div class="overflow-x-auto border border-court-100 bg-white shadow-sm">
-    <table class="w-full text-left text-sm text-court-700">
-        <thead class="border-b border-court-100 bg-court-50 text-xs uppercase tracking-wide text-court-900">
+    <div class="overflow-x-auto border border-[#304252] bg-[#18222c] shadow-sm">
+    <table class="w-full text-left text-sm text-[#c5d6de]">
+        <thead class="border-b border-[#304252] bg-[#202d39] text-xs uppercase tracking-wide text-[#edf4f7]">
             <tr>
                 <th>Date</th>
                 <th>Temp. (C)</th>
@@ -26,7 +26,7 @@ else
         <tbody class="divide-y divide-court-100">
             @foreach (var forecast in forecasts)
             {
-                <tr class="hover:bg-court-50">
+                <tr class="hover:bg-[#243542]">
                     <td class="px-4 py-3">@forecast.Date.ToShortDateString()</td>
                     <td class="px-4 py-3">@forecast.TemperatureC</td>
                     <td class="px-4 py-3">@forecast.TemperatureF</td>

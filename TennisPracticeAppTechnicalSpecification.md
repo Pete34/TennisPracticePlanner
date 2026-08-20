@@ -6,7 +6,7 @@ Tennis Practice Planner is a personal-use web application for creating, saving, 
 
 The application will allow a user to build reusable instructions, group those instructions into practice templates, and view the total duration of each practice session.
 
-The application will be built with .NET 8 using Blazor WebAssembly and will store all user data in browser local storage.
+The application will be built with .NET 8 using Blazor WebAssembly. Version 1 stored all user data in browser local storage only (Guest Mode). Version 2 (planned) adds optional Firebase sign-in with cloud-backed private data per user, while Guest Mode continues to work unauthenticated with local storage only.
 
 ## 2. Goals
 
@@ -16,21 +16,25 @@ The application will be built with .NET 8 using Blazor WebAssembly and will stor
 - Show the total practice time for each session automatically.
 - Support mobile-friendly usage on iPhone 13 Pro in Safari.
 - Be deployable on Vercel.
+- (Planned) Allow signed-in users to build and edit sessions from a desktop and have that data available in the cloud, avoiding the need to paste YouTube links on a phone.
+- (Planned) Allow a small trusted circle of people to sign in and optionally share individual reusable instructions with each other.
 
 ## 3. Non-Goals
 
-- No user accounts or authentication.
-- No cloud database or server-side persistence.
-- No multi-user collaboration.
-- No offline sync across devices.
+- No public/open user registration — sign-in is limited to an explicit allow-list of approved emails.
+- No multi-user collaboration on the same template or session (templates and sessions always remain private to one user).
+- No offline sync across devices for signed-in cloud data beyond what Firestore provides by default.
 - No native mobile app in the first version.
+- No automatic migration of existing Guest Mode (local storage) data into a cloud account.
 
 ## 4. Platform and Technology
 
 - Framework: .NET 8
 - UI Technology: Blazor WebAssembly
 - Hosting Target: Vercel
-- Data Storage: Browser local storage only
+- Data Storage:
+  - Guest Mode (no sign-in): Browser local storage only, exactly as in Version 1.
+  - Signed-in Mode (planned): Firebase Authentication (Google Sign-In) + Cloud Firestore, restricted to an allow-list of approved emails.
 - Browser Target: Safari on iPhone 13 Pro, plus modern desktop browsers
 
 ## 5. Core Concepts
@@ -291,3 +295,40 @@ The first implementation should prioritize:
 5. Template editor with duration calculation
 6. Mobile styling and responsive layout
 7. Vercel deployment configuration
+
+## 17. Planned Version 2: Authentication and Cloud Sync
+
+### 17.1 Purpose
+
+Allow the app owner and a small trusted circle to sign in and build/edit practice data from a desktop, with data stored in the cloud, while keeping the app fully usable without an account (Guest Mode / local storage).
+
+### 17.2 Authentication
+
+- Provider: Firebase Authentication using Google Sign-In (OAuth). Free at this app's scale.
+- Signing in is optional. Users who do not sign in continue to use Guest Mode with local storage exactly as in Version 1.
+- Access is restricted to an allow-list of approved emails, stored in a Firestore document (e.g. `config/allowlist`) that can be edited directly from the Firebase console without redeploying code or security rules. The list starts with just the app owner's email and can be extended later.
+
+### 17.3 Cloud Data Model
+
+- Each signed-in user's Reusable Instructions, Practice Templates, and Sessions are stored privately under `users/{uid}/...` collections in Cloud Firestore.
+- Practice Templates and Sessions are always private and are never shared between users.
+- Reusable Instructions may optionally be shared:
+  - Each instruction gets an `IsShared: bool` flag and a `Tag` field chosen from a fixed list: Serve, Return, Volley, Footwork, Forehand, One-Handed Backhand, Doubles, Fitness.
+  - Shared instructions are discoverable by other signed-in users via a shared browsing view, filterable by tag, owner, and search text, with pagination to avoid unbounded lists.
+  - A user can copy a shared instruction into their own private instruction library ("Copy to my library"). Templates only ever reference a user's own instructions, never a live cross-user reference.
+
+### 17.4 Security Rules
+
+- Firestore security rules must:
+  - Require authentication for any read/write under `users/{uid}/...`, and only allow a user to read/write their own `uid` path.
+  - Require the signed-in user's email to appear in the `config/allowlist` document before granting any read/write access.
+  - Allow read access to shared instructions (`IsShared == true`) by any allow-listed signed-in user, while write access to an instruction remains restricted to its owner.
+
+### 17.5 Migration
+
+- No automatic migration of existing Guest Mode (local storage) data into a cloud account. Guest and cloud data remain separate; users may manually recreate data if they want it in the cloud.
+
+### 17.6 Non-Functional Notes
+
+- All Firebase products used (Authentication, Firestore at this app's expected usage volume) are free on the Spark plan.
+- The Firebase Web SDK config (apiKey, authDomain, projectId, etc.) is a public client identifier, not a secret; actual protection comes from Firestore security rules and the allow-list.
