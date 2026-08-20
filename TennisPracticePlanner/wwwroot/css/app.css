@@ -302,6 +302,11 @@ a {
     text-align: right;
 }
 
+.session-detail-total {
+    padding-left: 1.2rem;
+    margin-top: 1rem;
+}
+
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }

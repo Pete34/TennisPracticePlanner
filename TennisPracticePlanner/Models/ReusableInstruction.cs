@@ -17,4 +17,15 @@ public class ReusableInstruction
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+
+    // Cloud-sync sharing fields. Unused/ignored in Guest Mode (local storage).
+    public bool IsShared { get; set; }
+
+    public InstructionTag? Tag { get; set; }
+
+    public string? OwnerUid { get; set; }
+
+    public string? OwnerDisplayName { get; set; }
+
+    public DateTime? SharedAtUtc { get; set; }
 }

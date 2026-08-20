@@ -2,7 +2,10 @@
 @using System.Text.RegularExpressions
 @using TennisPracticePlanner.Models
 @using TennisPracticePlanner.Services
+@implements IDisposable
 @inject ITennisPracticeDataService DataService
+@inject CompositeTennisPracticeDataService CompositeService
+@inject IAuthService AuthService
 
 <PageTitle>Instruction Library</PageTitle>
 
@@ -43,6 +46,24 @@
                 YouTube Start Time (optional, mm:ss)
                 <input class="input-field" @bind="InstructionForm.YoutubeStartTime" placeholder="01:30" />
             </label>
+
+            @if (CompositeService.IsCloudActive)
+            {
+                <label>
+                    Category Tag
+                    <select class="input-field" @bind="InstructionForm.Tag">
+                        @foreach (InstructionTag tag in Enum.GetValues<InstructionTag>())
+                        {
+                            <option value="@tag">@tag</option>
+                        }
+                    </select>
+                </label>
+
+                <label class="checkbox-field">
+                    <input type="checkbox" @bind="InstructionForm.IsShared" />
+                    Share with my circle
+                </label>
+            }
         </div>
 
         <div class="button-row">
@@ -77,6 +98,10 @@
                         {
                             <p><a href="@BuildYoutubeUrl(instruction.YoutubeUrl, instruction.YoutubeStartTime)" target="_blank" rel="noopener noreferrer">Open Drill Video</a></p>
                         }
+                        @if (instruction.IsShared)
+                        {
+                            <p><strong>Shared:</strong> @instruction.Tag</p>
+                        }
 
                         <div class="button-row">
                             <button class="button button-primary" @onclick="() => BeginEdit(instruction)">Edit</button>
@@ -93,7 +118,7 @@
     private static readonly Regex TimeRegex = new("^\\d{1,2}:\\d{2}$", RegexOptions.Compiled);
 
     private List<ReusableInstruction> SavedInstructions { get; set; } = [];
-    private ReusableInstruction InstructionForm { get; set; } = new();
+    private ReusableInstruction InstructionForm { get; set; } = new() { Tag = InstructionTag.Serve };
 
     private string? EditingInstructionId { get; set; }
     private string? FormMessage { get; set; }
@@ -102,8 +127,20 @@
 
     protected override async Task OnInitializedAsync()
     {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
         await DataService.InitializeAsync();
         await LoadInstructionsAsync();
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        await LoadInstructionsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
     }
 
     private async Task LoadInstructionsAsync()
@@ -154,6 +191,11 @@
             BallCount = instruction.BallCount,
             YoutubeUrl = instruction.YoutubeUrl,
             YoutubeStartTime = instruction.YoutubeStartTime,
+            IsShared = instruction.IsShared,
+            Tag = instruction.Tag,
+            OwnerUid = instruction.OwnerUid,
+            OwnerDisplayName = instruction.OwnerDisplayName,
+            SharedAtUtc = instruction.SharedAtUtc,
             CreatedUtc = instruction.CreatedUtc,
             UpdatedUtc = instruction.UpdatedUtc
         };
@@ -179,7 +221,8 @@
     private void ResetForm()
     {
         EditingInstructionId = null;
-        InstructionForm = new ReusableInstruction();
+        // The Tag <select> always visually shows its first option, so default the model to match.
+        InstructionForm = new ReusableInstruction { Tag = InstructionTag.Serve };
     }
 
     private static bool TryValidateInstruction(ReusableInstruction instruction, out string message)

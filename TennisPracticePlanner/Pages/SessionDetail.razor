@@ -1,6 +1,8 @@
 @page "/sessions/{SessionId}"
 @layout SessionDetailLayout
+@implements IDisposable
 @inject ITennisPracticeDataService DataService
+@inject IAuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>Session Detail</PageTitle>
@@ -49,7 +51,7 @@ else
                 </ol>
             }
 
-            <p><strong>Total Duration:</strong> @TotalDuration minutes</p>
+            <p class="session-detail-total"><strong>Total Duration:</strong> @TotalDuration minutes</p>
         </div>
     </div>
 }
@@ -66,7 +68,19 @@ else
 
     private int TotalDuration => OrderedInstructions.Sum(item => item.DurationMinutes);
 
+    protected override void OnInitialized()
+    {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+    }
+
     protected override async Task OnParametersSetAsync()
+    {
+        await AuthService.InitializeAsync();
+        await AuthService.InitialCheckCompleteAsync;
+        await LoadSessionAsync();
+    }
+
+    private async Task LoadSessionAsync()
     {
         await DataService.InitializeAsync();
         Session = await DataService.GetPracticeTemplateByIdAsync(SessionId);
@@ -75,6 +89,17 @@ else
         {
             Navigation.NavigateTo("/sessions");
         }
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        await LoadSessionAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
     }
 
     private static string BuildYoutubeUrl(string? youtubeUrl, string? youtubeStartTime)

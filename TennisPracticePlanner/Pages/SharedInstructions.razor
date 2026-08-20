@@ -1,0 +1,150 @@
+@page "/shared-instructions"
+@using TennisPracticePlanner.Models
+@using TennisPracticePlanner.Services
+@implements IDisposable
+@inject CompositeTennisPracticeDataService DataService
+@inject IAuthService AuthService
+
+<PageTitle>Shared Instructions</PageTitle>
+
+<div class="content-panel">
+    <h1 class="display-title">Shared Instructions</h1>
+    <p class="subtitle">Drills shared by others in your circle. Copy any of them into your own library.</p>
+
+    @if (!DataService.IsCloudActive)
+    {
+        <div class="panel-card">
+            <p>Sign in with Google to view and share instructions with your circle. This feature is not available in Guest Mode.</p>
+        </div>
+    }
+    else
+    {
+        <div class="panel-card">
+            @if (!string.IsNullOrWhiteSpace(FormMessage))
+            {
+                <p class="form-message">@FormMessage</p>
+            }
+
+            <div class="form-grid">
+                <label>
+                    Filter by Tag
+                    <select class="input-field" @bind="SelectedTag" @bind:after="LoadSharedInstructionsAsync">
+                        <option value="">All Tags</option>
+                        @foreach (InstructionTag tag in Enum.GetValues<InstructionTag>())
+                        {
+                            <option value="@tag">@tag</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    Search
+                    <input class="input-field" @bind="SearchText" @bind:event="oninput" placeholder="Search description..." />
+                </label>
+            </div>
+        </div>
+
+        <div class="panel-card">
+            <h2>Available Drills (@FilteredInstructions.Count)</h2>
+
+            @if (FilteredInstructions.Count == 0)
+            {
+                <p>No shared instructions match your filters yet.</p>
+            }
+            else
+            {
+                <div class="card-grid">
+                    @foreach (ReusableInstruction instruction in FilteredInstructions)
+                    {
+                        <article class="item-card">
+                            <h3>@instruction.Description</h3>
+                            <p><strong>Duration:</strong> @instruction.DurationMinutes min</p>
+                            @if (instruction.BallCount.HasValue)
+                            {
+                                <p><strong>Balls:</strong> @instruction.BallCount.Value</p>
+                            }
+                            <p><strong>Tag:</strong> @instruction.Tag</p>
+                            <p><strong>Shared by:</strong> @instruction.OwnerDisplayName</p>
+                            @if (!string.IsNullOrWhiteSpace(instruction.YoutubeUrl))
+                            {
+                                <p><a href="@instruction.YoutubeUrl" target="_blank" rel="noopener noreferrer">Open Drill Video</a></p>
+                            }
+
+                            <div class="button-row">
+                                <button class="button button-primary" @onclick="() => CopyToLibraryAsync(instruction)">Copy to My Library</button>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ReusableInstruction> AllSharedInstructions { get; set; } = [];
+    private string SelectedTag { get; set; } = string.Empty;
+    private string SearchText { get; set; } = string.Empty;
+    private string? FormMessage { get; set; }
+
+    private List<ReusableInstruction> FilteredInstructions =>
+        string.IsNullOrWhiteSpace(SearchText)
+            ? AllSharedInstructions
+            : AllSharedInstructions
+                .Where(instruction => instruction.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+
+        if (DataService.IsCloudActive)
+        {
+            await LoadSharedInstructionsAsync();
+        }
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        if (DataService.IsCloudActive)
+        {
+            await LoadSharedInstructionsAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
+    }
+
+    private async Task LoadSharedInstructionsAsync()
+    {
+        FormMessage = null;
+
+        try
+        {
+            InstructionTag? tag = Enum.TryParse(SelectedTag, out InstructionTag parsedTag) ? parsedTag : null;
+            AllSharedInstructions = await DataService.CloudService.GetSharedInstructionsAsync(tag);
+        }
+        catch (Microsoft.JSInterop.JSException)
+        {
+            FormMessage = "Could not load shared instructions. The required Firestore index may still be building; try again in a minute.";
+            AllSharedInstructions = [];
+        }
+    }
+
+    private async Task CopyToLibraryAsync(ReusableInstruction instruction)
+    {
+        try
+        {
+            await DataService.CloudService.CopySharedInstructionToLibraryAsync(instruction);
+            FormMessage = $"\"{instruction.Description}\" copied to your library.";
+        }
+        catch (Microsoft.JSInterop.JSException)
+        {
+            FormMessage = "Could not copy this instruction. Please try again.";
+        }
+    }
+}

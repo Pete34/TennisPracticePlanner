@@ -8,6 +8,10 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
-builder.Services.AddScoped<ITennisPracticeDataService, TennisPracticeDataService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<TennisPracticeDataService>();
+builder.Services.AddScoped<CloudTennisPracticeDataService>();
+builder.Services.AddScoped<ITennisPracticeDataService, CompositeTennisPracticeDataService>();
+builder.Services.AddScoped(sp => (CompositeTennisPracticeDataService)sp.GetRequiredService<ITennisPracticeDataService>());
 
 await builder.Build().RunAsync();

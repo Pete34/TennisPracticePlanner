@@ -1,4 +1,5 @@
-﻿<div class="flex h-14 items-center justify-between border-b border-white/10 px-5">
+﻿@implements IDisposable
+<div class="flex h-14 items-center justify-between border-b border-white/10 px-5">
     <a class="font-['Bebas_Neue'] text-2xl tracking-wide text-white no-underline" href="">Tennis Practice</a>
     <button title="Navigation menu" class="rounded-md p-2 text-white hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-peach-300 md:hidden" @onclick="ToggleNavMenu">
         <span class="block h-0.5 w-5 bg-white shadow-[0_6px_0_white,0_-6px_0_white]"></span>
@@ -19,16 +20,77 @@
         <NavLink class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-court-100 no-underline transition hover:bg-white/10 hover:text-white [&.active]:bg-peach-500 [&.active]:text-white" href="sessions">
             <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Sessions
         </NavLink>
+        <NavLink class="flex h-11 items-center rounded-md px-3 text-sm font-semibold text-court-100 no-underline transition hover:bg-white/10 hover:text-white [&.active]:bg-peach-500 [&.active]:text-white" href="shared-instructions">
+            <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Shared Instructions
+        </NavLink>
     </nav>
+
+    <div class="mt-4 border-t border-white/10 px-3 pt-4 text-sm text-court-100">
+        @if (!string.IsNullOrWhiteSpace(AuthService.LastErrorMessage))
+        {
+            <p class="mb-2 text-xs text-peach-300">@AuthService.LastErrorMessage</p>
+        }
+        @if (AuthService.IsSignedIn)
+        {
+            <p class="mb-1 truncate font-semibold text-white">@(AuthService.CurrentUser?.DisplayName ?? AuthService.CurrentUser?.Email)</p>
+            @if (AuthService.IsAllowed == true)
+            {
+                <p class="mb-2 text-xs text-court-100">Cloud sync active</p>
+            }
+            else if (AuthService.IsAllowed == false)
+            {
+                <p class="mb-2 text-xs text-peach-300">Not on the approved list. Using Guest Mode.</p>
+            }
+            else
+            {
+                <p class="mb-2 text-xs text-court-100">Checking access...</p>
+            }
+            <button class="w-full rounded-md bg-white/10 px-3 py-2 text-left font-semibold text-white hover:bg-white/20" @onclick="SignOutAsync">Sign out</button>
+        }
+        else
+        {
+            <p class="mb-2 text-xs text-court-100">Guest Mode (local storage only)</p>
+            <button class="w-full rounded-md bg-white/10 px-3 py-2 text-left font-semibold text-white hover:bg-white/20" @onclick="SignInAsync">Sign in with Google</button>
+        }
+    </div>
 </div>
 
 @code {
+    [Inject]
+    private IAuthService AuthService { get; set; } = default!;
+
     private bool collapseNavMenu = true;
 
     private string NavMenuCssClass => collapseNavMenu ? "hidden md:block" : "block";
 
+    protected override async Task OnInitializedAsync()
+    {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+        await AuthService.InitializeAsync();
+    }
+
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
+    }
+
+    private async Task SignInAsync()
+    {
+        await AuthService.SignInWithGoogleAsync();
+    }
+
+    private async Task SignOutAsync()
+    {
+        await AuthService.SignOutAsync();
+    }
+
+    private void OnAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
     }
 }

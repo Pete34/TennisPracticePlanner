@@ -1,5 +1,7 @@
 @page "/sessions"
+@implements IDisposable
 @inject ITennisPracticeDataService DataService
+@inject IAuthService AuthService
 
 <PageTitle>Session Library</PageTitle>
 
@@ -8,7 +10,11 @@
     <p class="subtitle">All saved practice sessions built from your templates.</p>
 
     <div class="panel-card">
-        @if (SessionItems.Count == 0)
+        @if (SessionItems is null)
+        {
+            <p>Loading sessions...</p>
+        }
+        else if (SessionItems.Count == 0)
         {
             <p>No sessions available yet. Create one from Templates first.</p>
         }
@@ -28,11 +34,33 @@
 </div>
 
 @code {
-    private List<PracticeTemplate> SessionItems { get; set; } = [];
+    private List<PracticeTemplate>? SessionItems { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+
+        await AuthService.InitializeAsync();
+        await AuthService.InitialCheckCompleteAsync;
+        await LoadSessionsAsync();
+    }
+
+    private async Task LoadSessionsAsync()
+    {
         await DataService.InitializeAsync();
         SessionItems = await DataService.GetPracticeTemplatesAsync();
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        SessionItems = null;
+        await InvokeAsync(StateHasChanged);
+        await LoadSessionsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
     }
 }

@@ -1,7 +1,9 @@
 @page "/templates"
 @using TennisPracticePlanner.Models
 @using TennisPracticePlanner.Services
+@implements IDisposable
 @inject ITennisPracticeDataService DataService
+@inject IAuthService AuthService
 @inject NavigationManager Navigation
 
 <PageTitle>Practice Templates</PageTitle>
@@ -31,9 +33,13 @@
     </div>
 
     <div class="panel-card">
-        <h2>Saved Templates (@SavedTemplates.Count)</h2>
+        <h2>Saved Templates (@(SavedTemplates?.Count ?? 0))</h2>
 
-        @if (SavedTemplates.Count == 0)
+        @if (SavedTemplates is null)
+        {
+            <p>Loading templates...</p>
+        }
+        else if (SavedTemplates.Count == 0)
         {
             <p>No templates yet. Create one to get started.</p>
         }
@@ -60,19 +66,36 @@
 </div>
 
 @code {
-    private List<PracticeTemplate> SavedTemplates { get; set; } = [];
+    private List<PracticeTemplate>? SavedTemplates { get; set; }
     private string NewTemplateTitle { get; set; } = string.Empty;
     private string? FormMessage { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        await DataService.InitializeAsync();
+        AuthService.AuthStateChanged += OnAuthStateChanged;
+
+        await AuthService.InitializeAsync();
+        await AuthService.InitialCheckCompleteAsync;
         await LoadTemplatesAsync();
     }
 
     private async Task LoadTemplatesAsync()
     {
+        await DataService.InitializeAsync();
         SavedTemplates = await DataService.GetPracticeTemplatesAsync();
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        SavedTemplates = null;
+        await InvokeAsync(StateHasChanged);
+        await LoadTemplatesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthService.AuthStateChanged -= OnAuthStateChanged;
     }
 
     private async Task CreateTemplateAsync()

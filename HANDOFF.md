@@ -5,7 +5,7 @@
 - Project is scaffolded as .NET 8 Blazor WebAssembly.
 - Core app features are implemented and building successfully.
 - Build verified with: dotnet build (from TennisPracticePlanner folder).
-- Planning is complete for a Version 2 feature (Firebase Auth + cloud data). Implementation has not started yet. See "Planned Feature: Firebase Auth and Cloud Sync" section below before starting that work.
+- Planning is complete for a Version 2 feature (Firebase Auth + cloud data). Implementation is done and manually tested end-to-end (sign-in, cloud sync, sharing, tag filter, search) as of 2026-08-20. See "Planned Feature: Firebase Auth and Cloud Sync" section below for details and remaining follow-ups.
 
 ## Workspace Structure
 
@@ -141,29 +141,44 @@ From TennisPracticePlanner folder:
 
 ## Planned Feature: Firebase Auth and Cloud Sync
 
+Status: Implemented and manually tested end-to-end (2026-08-20). Firebase project: `tennis-practice-planner`.
+
 Full requirements are documented in TennisPracticeAppTechnicalSpecification.md, section 17. Summary:
 
 - Optional Google Sign-In (Firebase Auth). Not signed in = Guest Mode, unchanged local-storage behavior.
 - Access restricted to an allow-list of emails stored in a Firestore doc (`config/allowlist`), editable from the Firebase console. Starts with just the app owner's email.
-- Signed-in data model: private per-user Firestore collections `users/{uid}/instructions`, `users/{uid}/templates`, `users/{uid}/sessions`.
-- Templates and Sessions are always private, never shared.
+- Signed-in data model: private per-user Firestore collections `users/{uid}/instructions`, `users/{uid}/templates`. (Sessions Library/Detail pages are a read-only view over templates; no separate sessions collection.)
+- Templates are always private, never shared.
 - Reusable Instructions can optionally be shared (`IsShared` flag + fixed `Tag`: Serve, Return, Volley, Footwork, Forehand, One-Handed Backhand, Doubles, Fitness). Shared instructions are browsable/filterable by other allow-listed users, with a "Copy to my library" action (no live cross-user references).
 - No auto-migration of existing local-storage/guest data into the cloud.
 
-### Blocking prerequisite before implementation starts
+### Key files
 
-The user must complete these steps in the Firebase Console (cannot be done by the assistant):
+- TennisPracticePlanner/wwwroot/js/firebase-interop.js - ES module (dynamic import via IJSRuntime). Wraps Firebase Auth (Google) + Firestore CRUD + collectionGroup shared-instruction query. Firebase SDK v12.18.0 via CDN.
+- TennisPracticePlanner/Services/IAuthService.cs, AuthService.cs - sign-in/out, CurrentUser, IsAllowed (checked against config/allowlist), AuthStateChanged event, LastErrorMessage for graceful failure display.
+- TennisPracticePlanner/Services/CloudTennisPracticeDataService.cs - Firestore-backed data service (one doc per instruction/template under users/{uid}/...). Also exposes GetSharedInstructionsAsync/CopySharedInstructionToLibraryAsync (cloud-only, not on ITennisPracticeDataService).
+- TennisPracticePlanner/Services/CompositeTennisPracticeDataService.cs - switches between guest (local storage) and cloud based on IsCloudActive = IsSignedIn && IsAllowed==true.
+- TennisPracticePlanner/Pages/SharedInstructions.razor - route /shared-instructions, tag+search filter, copy-to-library.
+- TennisPracticePlanner/Layout/NavMenu.razor - sign-in/out button, auth status, Shared Instructions nav link.
+- TennisPracticePlanner/Pages/Instructions.razor - Tag dropdown + IsShared checkbox, shown only when cloud-active.
+- firestore.rules (repo root) - deployed. Enforces allow-list, private per-user access, and a `match /{path=**}/instructions/{id}` collection-group rule for shared reads.
+- Models/AppUser.cs, Models/InstructionTag.cs, ReusableInstruction.cs extended with IsShared/Tag/OwnerUid/OwnerDisplayName/SharedAtUtc.
 
-1. Enable Google as a Sign-in provider under Authentication.
-2. Create a Firestore Database.
-3. Add a Web App under Project Settings and obtain the `firebaseConfig` values (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId).
-4. Manually create a Firestore document at `config/allowlist` with an `emails` array containing the owner's email.
+### Bugs found and fixed during manual testing
 
-### Implementation steps once config is provided
+1. Auth-state race condition: pages checked `IsCloudActive` once in `OnInitializedAsync`, before the async Firebase session restore completed, so signed-in users briefly saw "Guest Mode"/"sign in" UI. Fixed by subscribing to `AuthService.AuthStateChanged` in `Instructions.razor` and `SharedInstructions.razor` and reloading/re-rendering on change.
+2. `AddReusableInstructionAsync` (create path) didn't set `OwnerUid`/`OwnerDisplayName`/`SharedAtUtc` when creating a new shared instruction - only the update path did. Fixed by extracting a shared `ApplySharingMetadata` helper used by both Add and Update.
+3. The Tag `<select>` visually defaults to its first option ("Serve") but Blazor's bound nullable enum value stays `null` unless the user changes the dropdown, silently saving no tag. Fixed by defaulting `InstructionForm.Tag = InstructionTag.Serve` on form init/reset.
+4. Tag filter on Shared Instructions always returned 0 results: `InstructionTag` was serialized as a number by default `System.Text.Json` behavior when written to Firestore, but the query compared against `tag.ToString()` (a string). Fixed by adding `JsonStringEnumConverter()` to `CloudTennisPracticeDataService`'s `JsonSerializerOptions`. Any instruction docs written before this fix have a numeric `tag` field and must be re-saved (edit + save) to pick up the corrected string value.
+5. Unhandled sign-in/out JS exceptions (e.g. Google provider not yet enabled, popup closed by user) crashed the whole Blazor render tree with the full-page "unhandled error" banner. Fixed by catching `JSException` in `AuthService` and surfacing a friendly `LastErrorMessage` in the NavMenu instead.
 
-1. Add Firebase JS SDK + Blazor JS interop wiring.
-2. Build `IAuthService`/`FirebaseAuthService` (Google sign-in/out, current user state).
-3. Extend the data service layer with a Firestore-backed implementation alongside the existing local-storage one, switching based on auth state.
-4. Add sign-in UI.
-5. Add shared-instruction browsing/filtering UI (tag, owner, search, pagination) and "Copy to my library".
-6. Write Firestore security rules enforcing the allow-list and private/shared model (see spec section 17.4).
+### Firestore setup notes for future reference
+
+- Firestore database created in production mode (not test mode) since `firestore.rules` already existed.
+- Default database (`(default)`), no need for named databases.
+- The `collectionGroup` query for shared instructions required two composite/collection-group indexes to be created manually in the Firebase Console (Firestore > Indexes > Composite tab, Collection group = `instructions`): one on `isShared` alone, one on `isShared` + `tag`. New index creation can occasionally fail with a transient "unknown error" - delete and recreate if that happens.
+
+### Remaining/optional follow-ups
+
+- Deploying firestore.rules changes in the future should go through Firebase Console > Firestore > Rules (already done once for the current ruleset).
+- Consider applying the same AuthStateChanged-subscription pattern to Templates/Sessions pages if stale guest/cloud data on sign-in transition is ever reported there (not yet observed/tested).

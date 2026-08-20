@@ -6,7 +6,7 @@ Tennis Practice Planner is a personal-use web application for creating, saving, 
 
 The application will allow a user to build reusable instructions, group those instructions into practice templates, and view the total duration of each practice session.
 
-The application will be built with .NET 8 using Blazor WebAssembly. Version 1 stored all user data in browser local storage only (Guest Mode). Version 2 (planned) adds optional Firebase sign-in with cloud-backed private data per user, while Guest Mode continues to work unauthenticated with local storage only.
+The application will be built with .NET 8 using Blazor WebAssembly. Version 1 stored all user data in browser local storage only (Guest Mode). Version 2 adds optional Firebase sign-in with cloud-backed private data per user, while Guest Mode continues to work unauthenticated with local storage only. Version 2 is implemented and has been manually tested end-to-end (see HANDOFF.md).
 
 ## 2. Goals
 
@@ -310,8 +310,8 @@ Allow the app owner and a small trusted circle to sign in and build/edit practic
 
 ### 17.3 Cloud Data Model
 
-- Each signed-in user's Reusable Instructions, Practice Templates, and Sessions are stored privately under `users/{uid}/...` collections in Cloud Firestore.
-- Practice Templates and Sessions are always private and are never shared between users.
+- Each signed-in user's Reusable Instructions and Practice Templates are stored privately under `users/{uid}/...` collections in Cloud Firestore. (The Sessions Library / Session Detail pages are a read-only view over Practice Templates; there is no separate Sessions collection.)
+- Practice Templates are always private and are never shared between users.
 - Reusable Instructions may optionally be shared:
   - Each instruction gets an `IsShared: bool` flag and a `Tag` field chosen from a fixed list: Serve, Return, Volley, Footwork, Forehand, One-Handed Backhand, Doubles, Fitness.
   - Shared instructions are discoverable by other signed-in users via a shared browsing view, filterable by tag, owner, and search text, with pagination to avoid unbounded lists.
